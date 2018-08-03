@@ -1,0 +1,315 @@
+***************************************************************************************
+RCL Argos Data - Processing and File Formats
+***************************************************************************************
+
+Argos data are placed on the GNS Ftp server by the Argos data centre and automatically 
+FTP'd to Tarawera by the 'Get Argos' script (/home/volcano/programs/rcl_argos/get_argos.sh). 
+Downloaded raw files are placed in: 
+   /home/volcano/data/rcl_argos/raw
+
+The data processing script generates daily 'clean' files, which are placed in:
+   /home/volcano/data/rcl_argos/clean
+
+Clean files are filed by year and month. 
+
+A concatenated 'clean' file is created containing the most recent 120 days of data, 
+which is used to generate high resolution plots. (clean.csv) 
+
+An daily average file is also maintained. (rcl_daily_avg.csv)
+
+
+
+=======================================================================================
+Processing Steps: 
+=======================================================================================
+
+The data processing script chain is as follows 
+(scripts located in /home/volcano/programs/rcl_argos):
+
+Cron (Daily @ 08:00)
+  |
+  -->get_argos.sh
+       |
+       |-- Get raw argos files via FTP
+       |
+       |--> extract_argos.sh
+       |      |
+       |      -->argos_cleanup.pl (Perl)
+       |
+       |--> make_tilt.sh
+       |
+       |--> update_daily_average.sh
+       |
+       |-- Add daily data to 120 day clean file
+       |
+       |-- Copy daily average file to web server
+       |
+       ---> plot_argos.csh
+              |
+              ---> plot_rclargos.sh
+
+
+
+ 1: FTP Download:                                             
+
+  Run an FTP command sequence to retrieve the latest Argos files.
+  Files are deleted from FTP server after retrieval.          
+
+ 2: Generate 'Clean' Files:                                             
+                                                              
+  For the most recent 6 days, the script searches for and 
+  extracts data from the raw files, and generates new daily 
+  'clean' files. 
+
+  Data arrive as 16-bit unsigned integers; in fact, the values are 
+  actually in Campbell Scientific FP2 format. 
+
+  The values are extracted and coverted to floating point numbers. 
+  The checksum is used to remove bad records. 
+
+  Actual decode / clean is done by calling "extract_argos.sh"
+  for each date. See extract_argos.sh for additional notes. 
+
+ 3: Generate Tilt Data Files: 
+
+  For the most recent 6 days, the daily tilt file is updated 
+  by calling "make_tilt.sh" for the day. 
+  This script extracts the required tilt columns from the 
+  clean files, and converts the date format.
+
+ 4: Daily Average Update: 
+
+  For the most recent 6 days, the daily average file is updated
+  by calling "update_daily_average.sh" for the day. 
+  This script uses awk to calculate daily averages. See
+  update_daily_average.sh for more details. 
+                                                              
+ 5: Add data to 120 day clean file: 
+
+  For days from 120 to 7 days ago, the script assumes that
+  clean data have already been extracted; data for these days 
+  are simply extracted from any existing daily 'clean' files in 
+  /home/volcano/data/rcl_argos/clean and appended to a new 
+  120-day clean file (clean.csv) which is used to generate 
+  the plots. This ensures the 120-day file is up-to-date.
+
+ 6: Copy Daily Average File to Web Sever
+
+ 7: Draw Plots (also copies plots to web server)                                             
+
+
+
+
+
+=======================================================================================
+"Clean" file format: 
+=======================================================================================
+
+The following fields are stored in "clean" files:
+
+RecordDate,
+Battery,
+PanelTemp,
+DepthKTE,
+LakeTemp,
+AtmPressure,
+EastTilt,
+NorthTilt,
+TiltBatt,
+DepthKTEMin,
+DepthKTEMax,
+DepthKTEStdDev,
+DepthRTO
+
+
+Note that the 'RecordDate' is the Date/Time the data were recorded on the logger (UTC), 
+reconstructed using the 'Receive Date/Time' and the 'Interval No'. 'Receive Date/Time' is the
+UTC Date/Time that the data were received by the Argos data centre. 
+
+
+
+
+=======================================================================================
+Daily Averages File: 
+=======================================================================================
+
+The daily average file contains the following data columns: 
+
+DateTime,Battery,PanelTemp,LakeDepth,LakeTemp,AtmPressure,RecordCount
+
+RecordCount is the number of records recieved for the day (proxy for snow 
+burial depth!). 
+
+Note that records prior to 13-Apr-2011 represent NZST days, while records after 
+13-Apr-2011 represent UTC days. 
+
+
+
+
+=======================================================================================
+Argos raw data file formats:
+=======================================================================================
+
+The data fields transmitted by the Argos (i.e. the fields in the raw files) have changed 
+several times. File formats are summaried below: 
+
+
+15-Apr-2009 to 14-Apr-2010:
+---------------------------
+
+Eg: 
+"94061,NN,2009/04/15 03:36:44,1,13.09,22.22,0.282,29.25,1.606"
+
+Fields: 
+ID, 
+Satellite, 
+Recieve Date/Time, 
+Compression, 
+Battery (Volts), 
+Logger Temp (deg C), 
+Lake Depth KTE (m), 
+Lake Temp (Deg C), 
+Lake Depth RTO (m)
+
+NOTE: 'Lake Depth RTO' was derived from the RTO sensor, and was not very reliable. 
+
+
+
+14-Apr-2010 to 19-May-2010:
+---------------------------
+
+Eg:
+"94061,K,2010/04/13 15:54:08,3,12.57,3.42,0.578,20.07,723.95,250,0.166,0.009,0.004,0.001,0,0.001,0.003,15,295.6"
+
+Fields: 
+ID, 
+Satellite, 
+Recieve Date/Time, 
+Compression, 
+Battery (Volts), 
+Logger Temp (deg C), 
+Lake Depth KTE (m), 
+Lake Temp (Deg C), 
+Atmospheric Pressure (mV),
+Hydrophone Scale Range (mV),
+Hydrophone fft 1-3 Hz,
+Hydrophone fft 3-5 Hz,
+Hydrophone fft 5-10 Hz,
+Hydrophone fft 10-30 Hz,
+Hydrophone fft 30-100 Hz,
+Hydrophone fft 100-300 Hz,
+Hydrophone fft 300-1000 Hz,
+Interval No, 
+CheckSum
+
+NOTES: 
+Atmospheric Pressure was recorded in the logger cabinet. Values were transmitted in mV (raw sensor reading) 
+but converted to mBar in clean.csv by the processing script for convenient display on plots (mBar = mV x 82.7371). 
+
+'Interval No' refers to 15 minute interval of the day when the data were recorded (logger time), where 
+Midnight NZST = 0, 00:15 NZST = 1, 00:30 NZST = 2, etc. 
+
+'Checksum' is the sum of fields from 'Battery Voltage' through to the last Hydrophone fft value 
+(doesn't include the 'Interval No'). Note the atmospheric pressure reading used to calculate the CheckSum 
+is the original sensor reading in mV (divide the mBar value by 82.7371). 
+
+
+19-May-2010 to 13-Apr-2011:
+---------------------------
+
+Eg:
+"94061,P,2010/05/20 01:27:03,2,0.539,21.82,13.4,10.66,0,0.138,0.017,0.005,0.001,0.001,0,0,13.05,53,64.93"
+
+
+Fields: 
+ID, 
+Satellite, 
+Recieve Date/Time, 
+Compression, 
+Lake Depth KTE (m), 
+Lake Temp (Deg C), 
+Logger Temp (deg C), 
+Atmospheric Pressure (mBar),
+Hydrophone Scale Range (0 or 1),
+Hydrophone fft 1-3 Hz,
+Hydrophone fft 3-5 Hz,
+Hydrophone fft 5-10 Hz,
+Hydrophone fft 10-30 Hz,
+Hydrophone fft 30-100 Hz,
+Hydrophone fft 100-300 Hz,
+Hydrophone fft 300-1000 Hz,
+Battery (Volts), 
+Interval No, 
+CheckSum
+
+
+
+NOTES: 
+
+Atmospheric Pressure was recorded in the logger cabinet. Values were transmitted in PSI (raw sensor reading) 
+but converted to mBar in clean.csv by the processing script for convenient display on plots (mBar = PSI x 68.9475).
+
+'Hydrophone Scale Range' is stored as 0 or 1; 0=250 mv, 1 = 2500 mV.
+
+'Interval No' refers to 15 minute interval of the day when the data were recorded (logger time), where 
+Midnight NZST = 0, 00:15 NZST = 1, 00:30 NZST = 2, etc. 
+
+'Checksum' is the sum of fields from 'Lake Depth KTE', including 'Battery' and 'Interval No'. 'Interval No' 
+is divided by 10 when added to the Checksum, to ensure all values are in similar order of magnitude. 
+Note the atmospheric pressure reading used to calculate the CheckSum is in units of psi
+(divide the mBar value by 68.9475). 
+
+FFT Results for the bands at 30Hz, 100Hz and 300Hz are multiplied by 10 on the logger to improve resolution. 
+
+
+
+13-Apr-2011 - on:
+---------------------------
+
+
+Fields: 
+ID, 
+Satellite, 
+Recieve Date/Time, 
+Compression, 
+Lake Depth KTE (m), 
+Lake Temp (Deg C), 
+Logger Temp (deg C), 
+Atmospheric Pressure (PSI),
+East Tilt (uRad),
+North Tilt (uRad),
+Tilt Battery (volts),
+Minimum Lake Depth KTE (m),
+Maximum Lake Depth KTE (m),  
+Std Dev Lake Depth KTE (m), 
+Lake Depth RTO (PSI), 
+Battery (Volts), 
+Interval No, 
+CheckSum
+
+NOTES: 
+
+Logger time is UTC from 13-Apr-2011 onwards. 
+
+Atmospheric Pressure was recorded in the logger cabinet. Values were transmitted in PSI (raw sensor reading) 
+but converted to mBar in clean.csv by the processing script for convenient display on plots (mBar = PSI x 68.9475).
+
+RTO lake depth was recorded by the RTO pressure sensor in the lake and transmitted in PSI. Atmospheric pressure 
+recorded by the RTO sensor in the cabinet must be subtracted. The RTO pressure values are converted to m lake 
+depth by the processing script (assuming fresh water for the water density). 
+
+'Interval No' refers to 15 minute interval of the day when the data were recorded (logger time), where 
+Midnight UTC = 0, 00:15 = 1, 00:30 = 2, etc. 
+
+'Checksum' is the sum of fields from 'Lake Depth KTE', including 'Battery' and 'Interval No'. 
+
+The E and N Tilt values are divided by 1000, while the 'Interval No' is divided by 10, when
+adding these values to the Checksum. Note the atmospheric pressure and lake level RTO pressure readings
+used to calculate the CheckSum is in units of psi (divide the mBar value by 68.9475).
+
+CHECKSUM / TILT FAILURE: 
+The tilt meter logger stopped sending data on 13-May-2011, causing checksum value on main logger to change to 
+'NAN' (value -8190). Logger was reprogrammed on 21-Jun-2011 to restore checksum, and tilt logger was 
+restarted. Tilt logger stopped again on 27-Jun-2011, and all tilt values went to 0.00 (checksum still OK). 
+
+
