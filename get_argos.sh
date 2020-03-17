@@ -58,9 +58,6 @@ ftp -inv $source_machine << endftp
 endftp
 cd $OldDir
 
-
-
-
 ################################################################
 #
 #  The following script loops through the last 120 days. 
@@ -153,16 +150,11 @@ done
 ################################################################
 #  6: Copy Daily Average File to Web Sever:                                             
 ################################################################
-#cp $AvgFile $WebSitePath
-
 
 
 ################################################################
 #  7: Draw Plots (also copies plots to web server):                                             
 ################################################################                         
-#${ArgosProgPath}/plot_argos.csh
-
-
 
 ########
 # Done!#
